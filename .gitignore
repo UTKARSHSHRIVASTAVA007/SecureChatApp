@@ -4,3 +4,10 @@ users.json
 __pycache__/
 users.json
 __pycache__
+__pycache__/
+*.pyc
+nano
+key.key
+users.json
+__pycache__/
+*.pyc

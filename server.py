@@ -4,25 +4,28 @@ import json
 import datetime
 import sys
 from colorama import Fore, init
-
+from secret_key import fernet  # encryption
 init(autoreset=True)
 
-# === Banner ===
 banner = f"""{Fore.CYAN}
 
 
-╔══════════════════════════════════╗
-║           ChatServer             ║
-╚══════════════════════════════════╝
-
+   ____  _             _     ____                                
+  / ___|| |__    __ _ | |_  / ___|   ___  _ __ __   __ ___  _ __ 
+ | |    | '_ \  / _` || __| \___ \  / _ \| '__|\ \ / // _ \| '__|
+ | |___ | | | || (_| || |_   ___) ||  __/| |    \ V /|  __/| |   
+  \____||_| |_| \__,_| \__| |____/  \___||_|     \_/  \___||_|   
+                                                                                                                                        
 
    {Fore.YELLOW}Welcome to ChatServer
    Type '/shutdown' in this window to shut down the server.
+   
+   (Made with <3 by - Utkarsh Shrivastava)
+   
 """
 
 print(banner)
 
-# === Server setup ===
 host = '127.0.0.1'
 port = 55555
 
@@ -35,23 +38,22 @@ nicknames = []
 
 shutdown_flag = threading.Event()
 
-# === Broadcast messages ===
 def broadcast(message, _client=None):
     for client in clients:
         if client != _client:
             try:
-                client.send(message)
+                encrypted = fernet.encrypt(message)
+                client.send(encrypted)
             except:
                 pass
 
-# === Handle each client ===
 def handle(client):
     while True:
         try:
-            message = client.recv(1024)
-            decoded = message.decode('utf-8')
+            encrypted = client.recv(1024)
+            message = fernet.decrypt(encrypted).decode('utf-8')
 
-            if decoded == '/quit':
+            if message == '/quit':
                 index = clients.index(client)
                 nickname = nicknames[index]
                 timestamp = datetime.datetime.now().strftime('%H:%M')
@@ -62,10 +64,9 @@ def handle(client):
                 nicknames.remove(nickname)
                 client.close()
                 break
-
             else:
-                print(decoded)
-                broadcast(message, client)
+                print(message)
+                broadcast(message.encode('utf-8'), client)
 
         except:
             if client in clients:
@@ -80,20 +81,17 @@ def handle(client):
                 broadcast(crash_msg.encode('utf-8'))
             break
 
-# === Accept connections ===
 def receive():
     while not shutdown_flag.is_set():
         try:
             client, address = server.accept()
             nickname = client.recv(1024).decode('utf-8')
 
-            # 🔁 Reload users.json every time a new client connects
             with open('users.json', 'r') as f:
                 valid_users = json.load(f)
 
-            # Authenticate nickname
             if nickname not in valid_users:
-                client.send("/quit".encode('utf-8'))
+                client.send(fernet.encrypt("/quit".encode('utf-8')))
                 client.close()
                 print(f"{Fore.RED}Connection rejected from {address} - Unknown user: {nickname}")
                 continue
@@ -103,15 +101,15 @@ def receive():
 
             timestamp = datetime.datetime.now().strftime('%H:%M')
             print(f"{Fore.GREEN}[{timestamp}] {nickname} joined from {address}")
-            broadcast(f"{Fore.YELLOW}[{timestamp}] {nickname} joined the chat.".encode('utf-8'), client)
-            client.send(f"{Fore.CYAN}Welcome to the chat, {nickname}!".encode('utf-8'))
+            join_msg = f"{Fore.YELLOW}[{timestamp}] {nickname} joined the chat."
+            broadcast(join_msg.encode('utf-8'), client)
+            client.send(fernet.encrypt(f"{Fore.CYAN}Welcome to the chat, {nickname}!".encode('utf-8')))
 
             thread = threading.Thread(target=handle, args=(client,))
             thread.start()
         except:
             break
 
-# === Server shutdown input handler ===
 def listen_for_shutdown():
     while True:
         cmd = input()
@@ -120,17 +118,13 @@ def listen_for_shutdown():
             print(f"{Fore.RED}Server is shutting down...")
             for client in clients:
                 try:
-                    client.send("/quit".encode('utf-8'))
+                    client.send(fernet.encrypt("/quit".encode('utf-8')))
                     client.close()
                 except:
                     pass
             server.close()
             sys.exit()
 
-# === Launching ===
-accept_thread = threading.Thread(target=receive)
-accept_thread.start()
-
-shutdown_thread = threading.Thread(target=listen_for_shutdown)
-shutdown_thread.start()
+threading.Thread(target=receive).start()
+threading.Thread(target=listen_for_shutdown).start()
 
