@@ -11,3 +11,4 @@ key.key
 users.json
 __pycache__/
 *.pyc
+secret.key
