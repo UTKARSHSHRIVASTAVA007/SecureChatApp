@@ -53,8 +53,6 @@ bcrypt
 
 colorama
 
-##🧾 License
-MIT License © Utkarsh Shrivastava
 ---
 
 ## 🧰 Requirements
